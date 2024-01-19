@@ -1,0 +1,15 @@
+{{ if .Values.environment.enabled }}
+{{- $applicationName := include "app.name" . -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $applicationName }}
+  labels:
+    {{- include "app.labels" . | nindent 4 }}
+{{- with .Values.environment.values }}
+data:
+  {{- range $key, $value := . }}
+  {{ $key }}: {{ $value | quote }}
+  {{- end }}
+{{- end }}
+{{ end }}

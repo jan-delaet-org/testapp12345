@@ -1,0 +1,127 @@
+# Default values for app.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+# The name of the application. Will be used for resource names, labels and selectors.
+applicationName: testapp12345
+
+replicaCount: 2
+
+deploymentLabels:
+  backstage.io/kubernetes-id: testapp12345
+
+image:
+  repository: ""
+  pullPolicy: Always
+  # Overrides the image tag whose default is the chart appVersion.
+  tag: ""
+
+imagePullSecrets: []
+
+serviceAccount:
+  # The name of the service account to use. If not set, the application name will be used.
+  create: true
+  name: ""
+  # Annotations to add to the service account
+  labels:
+    backstage.io/kubernetes-id: testapp12345
+    # azure.workload.identity/use: "true"
+  annotations: {}
+  # azure.workload.identity/client-id: ""
+
+podLabels:
+  backstage.io/kubernetes-id: testapp12345
+  # azure.workload.identity/use: "true"
+
+podAnnotations: {}
+# azure.workload.identity/inject-proxy-sidecar: "true"
+
+# podSecurityContext:
+# fsGroup: 2000
+
+securityContext:
+  capabilities:
+    drop:
+    - ALL
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  runAsUser: 1001
+
+service:
+  type: ClusterIP
+  port: 8080
+  containerPort: 8080
+
+# Uncomment this section to enable volumes for this application.
+# volumes:
+#   - name: example_volume
+#     storageClassName: ""
+#     storageRequest: 100Gi
+#     accessModes:
+#       - ReadWriteOnce
+#     emptyDir: {}
+
+# Uncomment this section to enable volume mounts for this application.
+# volumeMounts:
+#   - name: example_volume
+#     mountPath: /tmp/vol
+#     readOnly: true
+
+environment:
+  enabled: false
+# Uncomment this section and set environment.enabled to true to enable environment variables for this application.
+#   values:
+#     EXAMPLE_ENV_VAR: "example"
+
+secrets:
+  enabled: false
+# Uncomment this section and set secrets.enabled to true to enable secret integration with Azure Key Vault for this application.
+# managedIdentity:
+#   clientId: "AZURE_MI_CLIENT_ID"
+#   tenantId: "AZURE_TENANT_ID"
+# keyvaultName: "AZURE_KEYVAULT_NAME"
+# prefix: dev # prefix for the secret identifiers in Azure Key Vault. Will be removed from the Kubernetes secret reference itself.
+# values:
+#     EXAMPLE_SECRET: "" # Provide the version for the secret if required, or leave empty quotes for the latest version.
+
+ingress:
+  enabled: true
+  labels:
+    backstage.io/kubernetes-id: testapp12345
+  # Uncomment this section and set ingress.enabled to true to enable Ingress for this application.
+  className: "nginx-pub"
+  hosts:
+  - host: testapp12345.example.com
+    paths:
+    - path: /
+      pathType: Prefix
+  tls:
+  - secretName: testapp12345-ingress-tls
+    hosts:
+    - testapp12345.example.com
+
+# Uncomment this section to set resource requests and limits. Request configuration is required for HorizontalPodAutoscaler to work correctly.
+# resources:
+#   limits:
+#     cpu: 100m
+#     memory: 128Mi
+#   requests:
+#     cpu: 100m
+#     memory: 128Mi
+
+autoscaling:
+  enabled: true
+  # Uncomment this section and set autoscaling.enabled to true to enable autoscaling through HorizontalPodAutoscaler.
+  minReplicas: 2
+  maxReplicas: 5
+  targetCPUUtilizationPercentage: 75
+  targetMemoryUtilizationPercentage: 75
+# nodeSelector: {}
+
+# tolerations:
+#   - key: "CriticalAddonsOnly"
+#     operator: "Equal"
+#     value: "True"
+#     effect: "NoSchedule"
+
+# affinity: {}

@@ -1,0 +1,63 @@
+# This workflow uses actions that are not certified by GitHub.
+# They are provided by a third-party and are governed by
+# separate terms of service, privacy policy, and support
+# documentation.
+
+# GitHub recommends pinning actions to a commit SHA.
+# To get a newer version, you will need to update the SHA.
+# You can also reference a tag or branch, but the action may change without warning.
+
+name: Build and deploy to Azure Kubernetes Service
+
+on:
+  workflow_call:
+
+env:
+  DOCKER_PROJECT: testapp12345
+  DOCKER_IMAGE: testapp12345
+  NAMESPACE: testapp12345
+  RESOURCE_GROUP: rg-aks-pe-poc-01 # need a fix for hardcoding this value
+  CLUSTER_NAME: aks-pe-poc-01
+  CHART_PATH: helm/testapp12345 # set this to the path to your helm file
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+      - name: Set up kubelogin for non-interactive login
+        uses: azure/use-kubelogin@v1
+        with:
+          kubelogin-version: "v0.0.24"
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          creds: |
+            {
+                "clientSecret": "${{ secrets.AZURE_CLIENT_SECRET }}",
+                "subscriptionId": "${{ vars.AZURE_SUBSCRIPTION_ID }}",
+                "tenantId": "${{ secrets.AZURE_TENANT_ID }}",
+                "clientId": "${{ secrets.AZURE_CLIENT_ID }}"
+            }
+      - name: Gets K8s context
+        uses: azure/aks-set-context@v3
+        with:
+          resource-group: ${{ env.RESOURCE_GROUP }}
+          cluster-name: ${{ env.CLUSTER_NAME }}
+          admin: "false"
+          use-kubelogin: "true"
+        id: login
+
+      - name: Setup Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: latest
+          token: 
+
+      - name: Deploy with Helm
+        run: helm upgrade --install ${{ env.DOCKER_PROJECT }} --create-namespace --namespace ${{ env.NAMESPACE }} --values ${{ env.CHART_PATH }}/values.yaml ${{ env.CHART_PATH }} --set image.repository=${{ vars.REGISTRY_ENDPOINT}}/${{ env.DOCKER_PROJECT }}/${{ env.DOCKER_IMAGE }}

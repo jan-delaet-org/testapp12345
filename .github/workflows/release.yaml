@@ -1,0 +1,115 @@
+name: Release
+on:
+  push:
+    branches:
+      - main
+      - alpha
+      - beta
+    # paths:
+    #   - helm/*
+    #   - functioncode
+
+env:
+  DOCKER_PROJECT: testapp12345
+  DOCKER_IMAGE: testapp12345
+  DOCKER_BUILD_CONTEXT: .
+  DOCKER_FILE: Dockerfile
+  DOCKER_PLATFORM: linux/amd64
+
+jobs:
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+      security-events: write
+      actions: read
+      # id-token: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      - name: Run Trivy scan on configuration
+        uses: aquasecurity/trivy-action@0.13.0
+        with:
+          scan-type: config
+          exit-code: "0" # Exit code 1 fails the pipeline if misconfigurations are detected
+          ignore-unfixed: true
+          severity: CRITICAL,HIGH
+      - name: Build image for security scan
+        uses: docker/build-push-action@v4
+        with:
+          push: false
+          tags: ${{ vars.REGISTRY_ENDPOINT }}/${{ env.DOCKER_PROJECT }}/${{ env.DOCKER_IMAGE }}:${{ github.run_number }}
+          platforms: ${{ env.DOCKER_PLATFORM }}
+          file: ${{ env.DOCKER_FILE }}
+          context: ${{ env.DOCKER_BUILD_CONTEXT }}
+          outputs: type=docker
+      - name: Run Trivy scan on container image
+        uses: aquasecurity/trivy-action@0.13.0
+        with:
+          scan-type: image
+          hide-progress: true
+          image-ref: ${{ vars.REGISTRY_ENDPOINT }}/${{ env.DOCKER_PROJECT }}/${{ env.DOCKER_IMAGE }}:${{ github.run_number }}
+          exit-code: "0" # Exit code 1 fails the pipeline if vulnerabilities are detected
+          format: sarif
+          output: trivy-results.sarif
+          ignore-unfixed: true
+          severity: CRITICAL,HIGH
+        #   trivyignores: functioncode/.trivyignore
+      - name: Upload Trivy scan results to GitHub Security tab
+        if: always()
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: trivy-results.sarif
+      - name: Setup NodeJS
+        uses: actions/setup-node@v3
+        with:
+          node-version: "lts/*"
+      - name: Install semantic-release dependencies
+        run: |
+          npm install --no-save \
+            semantic-release \
+            @semantic-release/commit-analyzer \
+            @semantic-release/release-notes-generator \
+            @semantic-release/changelog \
+            semantic-release-helm \
+            @semantic-release/git \
+            @codedependant/semantic-release-docker \
+            @semantic-release/github
+      - name: Log in to Azure container registry
+        uses: docker/login-action@v2
+        with:
+          registry: ${{ vars.REGISTRY_ENDPOINT }}
+          username: ${{ secrets.ACR_APPLICATION_ID }}
+          password: ${{ secrets.ACR_APPLICATION_SECRET }}
+      - name: Release
+        env:
+          REPOSITORY_URL: ${{ github.server_url }}/${{ github.repository }}.git
+          DOCKER_PROJECT: ${{ env.DOCKER_PROJECT }}
+          DOCKER_IMAGE: ${{ env.DOCKER_IMAGE }}
+          DOCKER_FILE: ${{ env.DOCKER_FILE }}
+          DOCKER_BUILD_CONTEXT: ${{ env.DOCKER_BUILD_CONTEXT }}
+          DOCKER_REGISTRY: ${{ vars.REGISTRY_ENDPOINT }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npx semantic-release
+      - name: Package Helm chart
+        env:
+          CHART_PATH: helm
+          CHART_NAME: ${{ env.DOCKER_IMAGE }}
+        run: helm package $CHART_PATH/$CHART_NAME
+      - name: Push Helm chart to OCI registry
+        env:
+          CHART_NAME: ${{ env.DOCKER_IMAGE }}
+          REGISTRY_ENDPOINT: ${{ vars.REGISTRY_ENDPOINT }}
+          CHART_REPOSITORY: ${{ env.DOCKER_PROJECT }}
+        run: |
+          CHART=$(ls $CHART_NAME*.tgz)
+          helm push $CHART oci://$REGISTRY_ENDPOINT/charts/$CHART_REPOSITORY
+  deploy:
+    needs: release
+    uses: ./.github/workflows/deploy.yaml
+    secrets: inherit
