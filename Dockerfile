@@ -1,4 +1,4 @@
-FROM python:3.11-alpine AS build
+FROM python:3.12-alpine AS build
 
 RUN apk update && apk upgrade
 RUN addgroup --gid 1001 app \
@@ -10,7 +10,7 @@ RUN python -m venv .venv
 ENV PATH="/app/.venv/bin:${PATH}"
 RUN pip install --no-cache-dir --upgrade -r requirements.txt
 
-FROM python:3.11-alpine
+FROM python:3.12-alpine
 
 RUN apk update && apk upgrade
 RUN addgroup --gid 1001 app \
